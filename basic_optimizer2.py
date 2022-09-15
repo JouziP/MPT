@@ -15,22 +15,51 @@ from numpy import linalg as lg
 class BasicOptimizer:
     def __init__(self, cov_matrix, rate_vec, expected_rate):
         '''
+            E  = w_i C_{ij} w_j + 
+                lambda1 (\sum_i w_i r_i - mu) + 
+                lambda2 (\sum_i w_i - 1) 
+            taking the 
+            
+            \part E/ \part w_k = 0  
+            \part E/ \part lambda1 = 0
+            \part E/ \part lambda2 = 0
+            
+            gives a set of equations. We can write it in terms of a matrix 
+            Kernel and a vector c = [0, ..., mu, 1]
+            
+            Kernel. x = c
+            
+            where x = [w_1,..., lambda1 , lambda2 ]^T 
+            find the inverse of Kernel and we have 
+            
+            [w_1, ..., ]
+            
+            here 
+            ws : array
+            lambda1: float
+            lambda2
+            
+            are set at initialization.
+            
             Parameters
-            ----------
-            x_current : vector
-                N=2 vector, x_current[:N] = ws, x_current[N:N+1] = lambda1, and
-                x_current[N+1:N+2] = lambda2 
+            ----------                           
+                cov_matrix : matrix
+                    N by N matrix of covarince --> C
+                rate_vec : vector
+                    N by 1 vector of historical rates --> r1, ...
+                expected_rate: float
+                    is the expected/desired rate of the portfolio-->
+                    "mu"
+            
+            Returns
+            -------
+            None
                 
-            cov_matrix : matrix
-                N by N matrix of covarince
-            rate_vec : vector
-                N by 1 vector of historical rates
-            expected_rate: float
-                is the expected rate of the portfolio
         '''
         self.cov_mtx =cov_matrix
         self.rate_vec =rate_vec        
         self.expected_rate =expected_rate
+        
         ##### Kernel . x = c
         ## Kernel
         self.Kernel = np.concatenate(
