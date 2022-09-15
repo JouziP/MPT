@@ -10,218 +10,177 @@ Created on Tue Sep 13 13:15:02 2022
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-
+from numpy import linalg as lg
 
 class BasicOptimizer:
-    def __init__(self,x_init, cov_matrix, rate_vec, expected_rate , delta):
+    def __init__(self, cov_matrix, rate_vec, expected_rate):
         '''
+            E  = w_i C_{ij} w_j + 
+                lambda1 (\sum_i w_i r_i - mu) + 
+                lambda2 (\sum_i w_i - 1) 
+            taking the 
+            
+            \part E/ \part w_k = 0  
+            \part E/ \part lambda1 = 0
+            \part E/ \part lambda2 = 0
+            
+            gives a set of equations. We can write it in terms of a matrix 
+            Kernel and a vector c = [0, ..., mu, 1]
+            
+            Kernel. x = c
+            
+            where x = [w_1,..., lambda1 , lambda2 ]^T 
+            find the inverse of Kernel and we have 
+            
+            [w_1, ..., ]
+            
+            here 
+            ws : array
+            lambda1: float
+            lambda2
+            
+            are set at initialization.
+            
             Parameters
-            ----------
-            x_current : vector
-                N=2 vector, x_current[:N] = ws, x_current[N:N+1] = lambda1, and
-                x_current[N+1:N+2] = lambda2 
+            ----------                           
+                cov_matrix : matrix
+                    N by N matrix of covarince --> C
+                rate_vec : vector
+                    N by 1 vector of historical rates --> r1, ...
+                expected_rate: float
+                    is the expected/desired rate of the portfolio-->
+                    "mu"
+            
+            Returns
+            -------
+            None
                 
-            cov_matrix : matrix
-                N by N matrix of covarince
-            rate_vec : vector
-                N by 1 vector of historical rates
-            expected_rate: float
-                is the expected rate of the portfolio
         '''
         self.cov_mtx =cov_matrix
-        self.rate_vec =rate_vec
-        self.x_current =x_init
+        self.rate_vec =rate_vec        
         self.expected_rate =expected_rate
-        self.delta =delta
-        self.ws_optimized = np.copy(x_init[:N])
         
+        ##### Kernel . x = c
+        ## Kernel
+        self.Kernel = np.concatenate(
+            (            
+            cov_matrix, 
+            rate_vec, 
+            np.ones(rate_vec.shape)
+                        ),
+            axis=1)
+        self.Kernel = np.concatenate(
+            (self.Kernel,
+             np.concatenate( (rate_vec.T, [[0, 0]]), axis=1),
+             np.concatenate( (np.ones(rate_vec.shape).T, [[0, 0]]), axis=1)
+             ),
+            axis=0)
+         
+        ## c
+        self.c =np.concatenate( (np.zeros(rate_vec.shape), 
+                             [[expected_rate], [1]]), axis=0
+                             )
         
-    ########### Utilities
-    def portfolioRate(self):
-        ws = np.matrix(self.ws_optimized)
-        ws = ws.reshape([len(self.ws_optimized), 1])
-        rate_portfolio_optimized = ws.T.dot(self.rate_vec)[0,0]        
-        return rate_portfolio_optimized
-
-    def portfolioRisk(self):
-        ws = np.matrix(self.ws_optimized)
-        ws = ws.reshape([len(self.ws_optimized), 1])
-        risk_portfolio_optimized = (ws.T.dot(self.cov_mtx)).dot(ws) [0,0]        
-        return risk_portfolio_optimized
+        ##### set ws, lambda1, lambda2
+        self.getW()
         
-    ###########
-    def optimizer(self, num_itr,
-                        x_current, 
-                        cov_matrix, 
-                        rate_vec, 
-                        expected_rate, 
-                        delta):
-        
-        reslts=[]
-        for it in range(num_itr):
-     
-            E_current = self.lagrangian(x_current, 
-                                           cov_matrix, 
-                                           rate_vec, 
-                                           expected_rate, 
-                                           delta)
-            
-            self.ws_optimized = np.copy(x_current[:N])
-            
-            self.rate_portfolio_optimized   =  self.portfolioRate()
-            self.risk_portfolio_optimized   =  self.portfolioRisk()
-            
-            ####            
-            reslts.append([it, E_current, 
-                           self.rate_portfolio_optimized,
-                           self.risk_portfolio_optimized,
-                           sum(x_current[:N])])
-            x_new = self.canonicalMomentum(x_current, cov_matrix, rate_vec, expected_rate , delta)            
-            x_current = np.copy(x_new)
-            
-        reslts = pd.DataFrame(reslts, columns=['it', 'E', 'Rate', 'Risk' , 'norm'])
+         
         
         
         
+    def getW(self):
+        A_inv = lg.inv(self.Kernel)
+        x_calculated = A_inv.dot(self.c)
+        self.ws = x_calculated[:-2]
+        self.lambda1 = x_calculated[-2][0,0]
+        self.lambda2 = x_calculated[-1][0,0]
         
-        return reslts
+        return self.ws, self.lambda1, self.lambda2
     
+    def getOptimizedMean(self):
+        self.portfolio_optimized_rate =  (self.ws.T.dot(self.rate_vec))[0,0]
+        return self.portfolio_optimized_rate
     
-            
-    def lagrangian(self, x_current, cov_matrix, rate_vec, expected_rate , delta):
-        '''
-        
-        computes a lagrangian L = L(ws,  lambda1). Our goal is to minimize 
-        this objective function
-    
-        Parameters
-        ----------
-        x_current : vector
-            N=2 vector, x_current[:N] = ws, x_current[N:N+1] = lambda1, and
-            x_current[N+1:N+2] = lambda2 
-            
-        cov_matrix : matrix
-            N by N matrix of covarince
-        rate_vec : vector
-            N by 1 vector of historical rates
-        expected_rate: float
-            is the expected rate of the portfolio
-    
-        Returns
-        -------
-        None.
-    
-        '''
-        
-        
-        # number of weights
-        N = x_current.shape[0] - 1
-        
-        # weights
-        ws = np.matrix(x_current[:N]).reshape(N, 1)
-        lambda1 = x_current[N:N+1][0]
-        
-        
-        
-        ####
-        E = (ws.T.dot(cov_matrix).dot(ws))[0,0] +\
-            lambda1 * ( (rate_vec.T.dot(ws))[0,0] - expected_rate)
-            
-        return E
-
-
-    def canonicalMomentum(self,x_current, cov_matrix, rate_vec, expected_rate , delta):
-        '''
-        
-        adjust the cordinate values by 
-        
-        w(t+delta) =  w(t) - delta * (\partial L/ \partial w)
-        
-        
-        Parameters
-        ----------
-        x_current : vector
-            N=2 vector, x_current[:N] = ws, x_current[N:N+1] = lambda1              
-        cov_matrix : matrix
-            N by N matrix of covarince
-        rate_vec : vector
-            N by 1 vector of historical rates
-        expected_rate: float
-            is the expected rate of the portfolio
-        
-    
-        Returns
-        -------
-        x_new: updated x variables.
-    
-        '''
-        
-        
-        # number of weights
-        N = x_current.shape[0] - 1
-        
-        # weights
-        ws = np.matrix(x_current[:N]).reshape(N, 1)
-        lambda1 = x_current[N:N+1][0]
-        
-        
-        
-        # delta_w
-        delta_w = (cov_matrix + cov_matrix.T).dot(ws) 
-        delta_w += lambda1*rate_vec
-        
-        ws_new = np.copy(ws) - delta * delta_w
-        
-        ### enforce normalization
-        ws_new = ws_new/sum(ws_new)[0,0]
-        
-        # delta_lambda1
-        delta_lambda1 = (rate_vec.T.dot(ws))[0,0] - expected_rate
-        lambda1 = lambda1 - delta * delta_lambda1
-        
-    
-        
-        x_new = np.array(ws_new.T.tolist()[0]+ [lambda1])
-        return x_new
-
+    def getOptimizedRisk(self):
+        self.portfolio_optimized_risk =  ((self.ws.T.dot(self.cov_mtx)).dot(self.ws))[0,0]
+        return self.portfolio_optimized_risk
 
 
 if __name__=='__main__':
     
-    seed=10029
-    np.random.seed(seed)
+    # seed=10029
+    # np.random.seed(seed)
     
-    # params
-    N = 10
-    num_itr= N**2
-    #
-    cov_matrix = np.matrix(np.random.uniform(0, 1, size=[N,N]))
-    cov_matrix = (cov_matrix +cov_matrix.T)/2    
-    #
-    rate_vec = np.matrix(np.random.uniform(-1, 1, size=[N,1]))
-    #
-    expected_rate  = 1
-    #
-    delta = 0.01
+    # # params
+    # N = 100
+    # num_itr= N**2
+    # #
+    # cov_matrix = np.matrix(np.random.uniform(0, 1, size=[N,N]))
+    # cov_matrix = (cov_matrix +cov_matrix.T)/2    
+    # #
+    # rate_vec = np.matrix(np.random.uniform(-1, 1, size=[N,1]))
+    # #
+    # expected_rate  = 0
+    # mpt = BasicOptimizer(cov_matrix, rate_vec, expected_rate)
+    # print(mpt.ws)
+    # print(mpt.ws.sum())
+    # print()
+    # print(mpt.lambda1)
+    # print()
+    # print(mpt.lambda2)
     
-    ####
-    ws_current = np.random.uniform(0, 1, size=N)
-    ws_current = ws_current/sum(ws_current)
+    # ###############   Real values
     
-    lambda1 = 100
+    from datetime import datetime
+    
+    from utilityFunctions import getYahooMultiPrice, getRates
+    from utilityFunctions import getCovMtx, getMeanVec
+    
+    tickers =  [
+                'ASML',
+                'AAPL',
+                'AAL', 
+                'DAL', 
+                
+                'GOOG',                
+                'JBLU', 
+                'KLAC',
+                'NCLH', 
+                '^GSPC',
+                'KIND',
+                'CSX',                
+                'PHM',
+                'MRNA',
+                'WY',
+                'PFE',
+                'RKLB',
+                ]    
+    when = 'High'
+    d1 = datetime(2022, 1, 20)
+    d2 = datetime(2022, 12, 5)
+    ticker='DAL'
+    interval='1d'      
+    rate_interval = 1
+    ### MPT specific
+    expected_rate = 0.1
+    
+    #######################################################    
+    closes = getYahooMultiPrice(tickers, d1, d2, interval, when)
+    print(closes)
+    print()
+    
+    rates = getRates(closes, rate_interval)
+    print(rates)
+    
+    rate_vec = getMeanVec(rates)
+    cov_matrix = getCovMtx(rates)
     
     
-    x_init = ws_current.tolist() + [lambda1]
-    x_init = np.array(x_init)
-    
-    myBO = BasicOptimizer(x_init, cov_matrix, rate_vec, expected_rate , delta)
-    reslts = myBO.optimizer(num_itr, 
-                                      x_init, 
-                                      cov_matrix, 
-                                      rate_vec, 
-                                      expected_rate, 
-                                      delta)
-    
-    
-    plt.plot(reslts['it'], np.array([reslts['Risk'], reslts['Rate']]).T, '--')
+    mpt = BasicOptimizer(cov_matrix, rate_vec, expected_rate)
+    print(mpt.ws)
+    print(mpt.ws.sum())
+    print()
+    print(mpt.lambda1)
+    print()
+    print(mpt.lambda2)
     
