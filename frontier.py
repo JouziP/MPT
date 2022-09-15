@@ -26,7 +26,7 @@ class Frontier:
         fig, ax = plt.subplots(1,1, figsize=[10,6])
         ax.scatter(self.results['portfolio_risk'],
                     self.results['portfolio_return'])  
-        ax.set_xlabel('risk (vol)')
+        ax.set_xlabel('risk (variance)')
         ax.set_ylabel('return (expected rate)')
         fig.show()
         
